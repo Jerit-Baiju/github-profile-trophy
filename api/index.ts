@@ -1,7 +1,7 @@
 import { Card } from "../src/card.ts";
 import { CONSTANTS, parseParams } from "../src/utils.ts";
 import { COLORS, Theme } from "../src/theme.ts";
-import { Error400 } from "../src/error_page.ts";
+import { Error400, Error403 } from "../src/error_page.ts";
 import "https://deno.land/x/dotenv@v0.5.0/load.ts";
 import { staticRenderRegeneration } from "../src/StaticRenderRegeneration/index.ts";
 import { GithubRepositoryService } from "../src/Repository/GithubRepository.ts";
@@ -42,6 +42,19 @@ async function app(req: Request): Promise<Response> {
   const row = params.getNumberValue("row", CONSTANTS.DEFAULT_MAX_ROW);
   const column = params.getNumberValue("column", CONSTANTS.DEFAULT_MAX_COLUMN);
   const themeParam: string = params.getStringValue("theme", "default");
+  // Allowlist check: if ALLOWED_USERNAMES is set, only serve listed usernames
+  const allowedEnv = Deno.env.get("ALLOWED_USERNAMES") ?? "";
+  if (allowedEnv.trim() !== "") {
+    const allowed = allowedEnv.split(",").map((u) => u.trim().toLowerCase());
+    if (username === null || !allowed.includes(username.toLowerCase())) {
+      const error = new Error403("This username is not permitted on this instance.");
+      return new Response(error.render(), {
+        status: error.status,
+        headers: new Headers({ "Content-Type": "text", "Cache-Control": cacheControlHeader }),
+      });
+    }
+  }
+
   if (username === null) {
     const [base] = req.url.split("?");
     const error = new Error400(
